@@ -1,0 +1,30 @@
+# Virtual Environments
+.venv/
+agentic-rag/
+env/
+venv/
+ENV/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets & Environment variables
+.env
+*.env
+*.env.local
+
+# Playwright & test artifacts
+.playwright-mcp/
+*.log
+
+# Editor & OS files
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db

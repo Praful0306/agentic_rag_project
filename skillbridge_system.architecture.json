@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "SkillBridge EdTech - Agentic RAG Architecture",
+    "output": "skillbridge_system.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "query-path",
+        "label": "Primary Query Execution Path",
+        "focus": ["query", "ui", "agent", "tools", "out"],
+        "note": "Follow an academic natural language question from user interface to the final 4-column output."
+      },
+      {
+        "id": "policy-rag",
+        "label": "Policy RAG & Dense Index",
+        "focus": ["docs", "faiss", "agent"],
+        "note": "Dense semantic retrieval over 5 institutional policies using sliding-window overlapping chunks."
+      },
+      {
+        "id": "tool-math",
+        "label": "Data & Deterministic Math",
+        "focus": ["agent", "tools", "calc", "db"],
+        "note": "Relational queries across 5 CSV tables and exact Python algebra for 0.00043 RMSE accuracy."
+      }
+    ]
+  },
+  "components": [
+    { "id": "query", "type": "external", "label": "Student Query", "sublabel": "Natural Language", "pos": [40, 300], "size": [120, 60] },
+    { "id": "guard", "type": "security", "label": "Scope Guard", "sublabel": "OOS Filter", "pos": [40, 120], "size": [120, 64], "tag": "Loss Defense" },
+    { "id": "ui", "type": "frontend", "label": "Streamlit UI", "sublabel": "Glassmorphism :8501", "pos": [250, 300], "size": [130, 60] },
+    { "id": "docs", "type": "database", "label": "Policy Docs", "sublabel": "5 Markdown Files", "pos": [250, 120], "size": [130, 60] },
+    { "id": "agent", "type": "backend", "label": "Agent Brain", "sublabel": "Multi-turn Loop", "pos": [460, 300], "size": [130, 60] },
+    { "id": "faiss", "type": "messagebus", "label": "FAISS Index", "sublabel": "Dense Vectors", "pos": [460, 120], "size": [130, 60], "tag": "MiniLM-L6-v2" },
+    { "id": "tools", "type": "backend", "label": "Tool Router", "sublabel": "7 OpenAPI Schemas", "pos": [670, 300], "size": [130, 60] },
+    { "id": "calc", "type": "backend", "label": "Math Engine", "sublabel": "Python Algebra", "pos": [670, 120], "size": [130, 60], "tag": "0.00043 RMSE" },
+    { "id": "db", "type": "database", "label": "Student CSVs", "sublabel": "32,000+ Records", "pos": [670, 440], "size": [130, 60], "tag": "Relational" },
+    { "id": "out", "type": "cloud", "label": "4-Col Engine", "sublabel": "Kaggle Verified", "pos": [880, 300], "size": [130, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "SkillBridge Agentic RAG Platform", "wraps": ["ui", "guard", "docs", "agent", "faiss", "tools", "calc", "db", "out"] },
+    { "kind": "security-group", "label": "Deterministic Execution", "wraps": ["tools", "calc"] }
+  ],
+  "connections": [
+    { "id": "q-to-ui", "from": "query", "to": "ui", "label": "ask", "variant": "emphasis" },
+    { "id": "ui-to-guard", "from": "ui", "to": "guard", "label": "filter", "variant": "security", "fromSide": "top", "toSide": "bottom", "labelDy": -58 },
+    { "id": "docs-to-faiss", "from": "docs", "to": "faiss", "label": "embed" },
+    { "id": "ui-to-agent", "from": "ui", "to": "agent", "label": "dispatch" },
+    { "id": "agent-faiss", "from": "agent", "to": "faiss", "label": "retrieve", "fromSide": "top", "toSide": "bottom", "labelDy": -68 },
+    { "id": "agent-to-tools", "from": "agent", "to": "tools", "label": "call", "variant": "emphasis" },
+    { "id": "tools-calc", "from": "tools", "to": "calc", "label": "solve", "fromSide": "top", "toSide": "bottom", "labelDy": -68 },
+    { "id": "tools-db", "from": "tools", "to": "db", "label": "join", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "labelDy": 58 },
+    { "id": "tools-to-out", "from": "tools", "to": "out", "label": "format", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Dual-Memory Pipeline",
+      "items": [
+        "Unstructured knowledge retrieved via FAISS vector search over 27 overlapping policy chunks",
+        "Structured records dynamically queried across 5 normalized CSV tables (32,000+ total rows)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Deterministic Grounding",
+      "items": [
+        "Python tool execution eliminates arithmetic drift and hallucinations",
+        "Reflects strict institutional priorities: Alert tiers, passing thresholds, Jan 15 2025 pace"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Loss Protection Guarantee",
+      "items": [
+        "Out-of-scope queries return answerable=0 and [-1.0, -1.0, -1.0]",
+        "Avoids catastrophic quadratic RMSE loss, securing Rank #3 on Kaggle Leaderboard"
+      ]
+    }
+  ]
+}
