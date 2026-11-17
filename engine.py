@@ -13,9 +13,16 @@ from typing import Dict, Any, List, Optional, Tuple
 import pandas as pd
 import numpy as np
 
-# Embedding and Vector Search
-import faiss
-from sentence_transformers import SentenceTransformer
+# Embedding and Vector Search (with pure-NumPy fallback if FAISS is unavailable)
+try:
+    import faiss
+except Exception:
+    faiss = None
+
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:
+    SentenceTransformer = None
 
 # Optional LLM providers
 try:
@@ -129,33 +136,77 @@ policy_chunks: List[Dict[str, Any]] = []
 for doc_name, text in policy_docs.items():
     policy_chunks.extend(chunk_document_with_overlap(text, doc_name, chunk_size_lines=18, overlap_lines=6))
 
-# Global embedding model and index singleton
+# Global embedding model, embeddings, and FAISS index singleton
 _embed_model = None
 _faiss_index = None
+_chunk_embeddings = None
 
 def get_vector_store():
-    """Lazy initialize SentenceTransformer and FAISS index with inner-product cosine similarity."""
-    global _embed_model, _faiss_index
-    if _faiss_index is None:
-        _embed_model = SentenceTransformer(EMBED_MODEL_NAME)
-        chunk_texts = [c["text"] for c in policy_chunks]
-        embeddings = _embed_model.encode(chunk_texts, convert_to_numpy=True, normalize_embeddings=True)
-        dim = embeddings.shape[1]
-        _faiss_index = faiss.IndexFlatIP(dim)
-        _faiss_index.add(embeddings.astype("float32"))
+    """Lazy initialize SentenceTransformer and FAISS index with inner-product cosine similarity (with NumPy fallback)."""
+    global _embed_model, _faiss_index, _chunk_embeddings
+    if _embed_model is None and SentenceTransformer is not None:
+        try:
+            _embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+            chunk_texts = [c["text"] for c in policy_chunks]
+            _chunk_embeddings = _embed_model.encode(chunk_texts, convert_to_numpy=True, normalize_embeddings=True).astype("float32")
+            if faiss is not None:
+                dim = _chunk_embeddings.shape[1]
+                _faiss_index = faiss.IndexFlatIP(dim)
+                _faiss_index.add(_chunk_embeddings)
+        except Exception:
+            _embed_model = None
+            _faiss_index = None
     return _embed_model, _faiss_index
 
 def retrieve_policy_chunks(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
-    """Semantic vector search over policy documents using FAISS."""
+    """Semantic vector search over policy documents using FAISS or pure NumPy cosine similarity."""
     model, index = get_vector_store()
-    q_vec = model.encode([query], convert_to_numpy=True, normalize_embeddings=True).astype("float32")
-    scores, indices = index.search(q_vec, k=top_k)
+    
+    # 1. If FAISS index is loaded, use FAISS
+    if model is not None and index is not None:
+        try:
+            q_vec = model.encode([query], convert_to_numpy=True, normalize_embeddings=True).astype("float32")
+            scores, indices = index.search(q_vec, k=top_k)
+            results = []
+            for score, idx in zip(scores[0], indices[0]):
+                if 0 <= idx < len(policy_chunks):
+                    item = dict(policy_chunks[idx])
+                    item["score"] = float(score)
+                    results.append(item)
+            return results
+        except Exception:
+            pass
+
+    # 2. If SentenceTransformer is loaded but FAISS is not, use pure NumPy dot-product
+    if model is not None and _chunk_embeddings is not None:
+        try:
+            q_vec = model.encode([query], convert_to_numpy=True, normalize_embeddings=True).astype("float32")[0]
+            scores = np.dot(_chunk_embeddings, q_vec)
+            top_indices = np.argsort(scores)[::-1][:top_k]
+            results = []
+            for idx in top_indices:
+                if 0 <= idx < len(policy_chunks):
+                    item = dict(policy_chunks[idx])
+                    item["score"] = float(scores[idx])
+                    results.append(item)
+            return results
+        except Exception:
+            pass
+
+    # 3. Fallback: Keyword token overlap retrieval
+    q_tokens = set(re.findall(r"\w+", query.lower()))
+    scored_chunks = []
+    for c in policy_chunks:
+        c_tokens = set(re.findall(r"\w+", c["text"].lower()))
+        common = len(q_tokens.intersection(c_tokens))
+        score = common / max(1, len(q_tokens))
+        scored_chunks.append((score, c))
+    scored_chunks.sort(key=lambda x: x[0], reverse=True)
     results = []
-    for score, idx in zip(scores[0], indices[0]):
-        if 0 <= idx < len(policy_chunks):
-            item = dict(policy_chunks[idx])
-            item["score"] = float(score)
-            results.append(item)
+    for score, c in scored_chunks[:top_k]:
+        item = dict(c)
+        item["score"] = round(float(score), 4)
+        results.append(item)
     return results
 
 # -------------------------------------------------------------
